@@ -3,13 +3,16 @@
 var fs = require('fs');
 var async = require('async');
 var cbor = require('../lib/cbor');
-var BufferStream = require('../lib/BufferStream');
+var ndjson = require('ndjson');
+var through2 = require('through2');
+var concat = require('concat-stream');
 var package = require('../package.json');
 
 var opts = require('commander')
 .version(package.version)
 .usage('[options] <file ...>')
 .option('-x, --hex', 'Hex string input')
+.option('-n, --ndjson', 'newline delimited json (streaming)')
 .parse(process.argv)
 
 var argv = opts.args
@@ -20,19 +23,28 @@ if (argv.length === 0) {
 function convert(name, cb) {
   var stream = (name == '-') ? process.stdin : fs.createReadStream(name);
 
-  var bs = new BufferStream();
-  bs.on('error', cb);
-  bs.on('finish', function() {
-    var j = JSON.parse(bs.flatten());
-    buf = cbor.Encoder.encode(j);
-    if (opts.hex) {
-      console.log(buf.toString('hex'));
-    } else {
-      process.stdout.write(buf);
-    }
-    cb();
-  });
-  stream.pipe(bs);
+  if (opts.ndjson) {
+    stream = stream.pipe(ndjson.parse({strict: false}));
+  } else {
+    stream = stream.pipe(concat.throughStream())
+    .pipe(through2.obj(jsonparse));
+  }
+
+  stream
+    .pipe(through2.obj(xform))
+    .pipe(process.stdout);
+}
+
+function xform(json, enc, cb) {
+  var buf = cbor.Encoder.encode(json);
+  if (opts.hex) {
+    buf = buf.toString('hex');
+  }
+  cb(null, buf);
+}
+
+function jsonparse(buf, enc, cb) {
+  cb(null, JSON.parse(buf));
 }
 
 async.eachSeries(argv, convert, function(er) {

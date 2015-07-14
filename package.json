@@ -60,6 +60,9 @@
   "dependencies": {
     "async": "^1.0.0",
     "bignumber.js": "~2.0.7",
-    "commander": "^2.8.1"
+    "commander": "^2.8.1",
+    "concat-stream": "^1.5.0",
+    "ndjson": "^1.4.1",
+    "through2": "^2.0.0"
   }
 }
